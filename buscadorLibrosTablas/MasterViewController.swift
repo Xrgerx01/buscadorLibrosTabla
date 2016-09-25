@@ -15,10 +15,34 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
     var managedObjectContext: NSManagedObjectContext? = nil
     private var libros = [Libro]()
     private var libroISBN : [String] = [String]()
-
+    var contexto : NSManagedObjectContext? = nil
+    
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
+        
+        //Carga Informacion de Libros Grabados
+        self.contexto = (UIApplication.sharedApplication().delegate as! AppDelegate).managedObjectContext
+        
+        let seccionEntidad = NSEntityDescription.entityForName("Seccion", inManagedObjectContext: self.contexto!)
+        let peticion = seccionEntidad?.managedObjectModel.fetchRequestTemplateForName("petSecciones")
+        
+        do{
+            
+            let seccionesEntidad = try self.contexto?.executeFetchRequest(peticion!)
+            for seccionEntidad2 in seccionesEntidad! {
+                let nombre = seccionEntidad2.valueForKey("nombre") as! String
+                let librocarga : Libro? = self.obtieneData(nombre)
+                self.libros.insert(librocarga!, atIndex: 0)
+                let indexPath = NSIndexPath(forRow: 0, inSection: 0)
+                self.tableView.insertRowsAtIndexPaths([indexPath], withRowAnimation: .Automatic)
+            }
+        }
+        catch{
+            
+        }
+
+        // Seccion de Button
         self.navigationItem.leftBarButtonItem = self.editButtonItem()
 
         let addButton = UIBarButtonItem(barButtonSystemItem: .Add, target: self, action: #selector(MasterViewController.insertNewObject(_:)))
@@ -38,6 +62,7 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
         super.didReceiveMemoryWarning()
         // Dispose of any resources that can be recreated.
     }
+    
     
     func obtieneData(codeISBN: String) ->Libro?{
         var libro :Libro? = nil
@@ -101,15 +126,43 @@ class MasterViewController: UITableViewController, NSFetchedResultsControllerDel
             let code = firstTextField.text!
             
             if code != ""{
+                
+        
+                //Verifica si el Libro ingresado se encuentra en la Base de Datos.
+                let seccionEntidad = NSEntityDescription.entityForName("Seccion", inManagedObjectContext: self.contexto!)
+                let peticion = seccionEntidad?.managedObjectModel.fetchRequestFromTemplateWithName("petSeccionn", substitutionVariables: ["nombre": code])
+                
+                do {
+                    let seccionEntidad2 = try self.contexto?.executeFetchRequest(peticion!)
+                    if (seccionEntidad2?.count > 0){
+                        return
+                    }
+                }
+                catch{
+                    
+                }
+   
+                
                 if Reachability.isConnectedToNetwork(){
                     let bookObtained :Libro? = self.obtieneData(code)
                     if bookObtained != nil {
-                        
+                     
                         bookObtained!.getDataImage()
                         self.libros.insert(bookObtained!, atIndex: 0)
                         let indexPath = NSIndexPath(forRow: 0, inSection: 0)
                         self.tableView.insertRowsAtIndexPaths([indexPath], withRowAnimation: .Automatic)
+                        //Guarda Nombre de isbn y titulo de Libro en Base de Datos
+                        let nuevaSeccionEntidad = NSEntityDescription.insertNewObjectForEntityForName("Seccion", inManagedObjectContext: self.contexto!)
+                        nuevaSeccionEntidad.setValue(code, forKey: "nombre")
+                        nuevaSeccionEntidad.setValue(bookObtained!.titulo, forKey: "titulo")
                         
+                        do {
+                            
+                            try self.contexto?.save()
+                        }
+                        catch{
+                            
+                        }
                         let controller = self.storyboard?.instantiateViewControllerWithIdentifier("DetailBookController") as! DetailViewController
                         
                         controller.libro = self.libros[0]
